@@ -6,17 +6,20 @@ import Signup from "./pages/Signup";
 import Feed from "./pages/Feed";
 import Profile from "./pages/Profile";
 import CreatePost from "./pages/CreatePost";
+import CreateRide from "./pages/CreateRide";
+
+// import FindRiders from "./pages/FindRiders";  // (coming soon)
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
-  return token ? children : <Navigate to="/login" />;
+  return token ? children : <Navigate to="/login" replace />;
 };
 
 const AppRouter = () => {
   return (
     <Router>
       <Routes>
-        {/* AUTH */}
+        {/* AUTH PAGES */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
 
@@ -50,6 +53,16 @@ const AppRouter = () => {
           }
         />
 
+        <Route
+          path="/create-ride"
+          element={
+            <ProtectedRoute>
+              <CreateRide />
+            </ProtectedRoute>
+          }
+        />
+
+
         {/* CREATE POST */}
         <Route
           path="/create-post"
@@ -60,8 +73,20 @@ const AppRouter = () => {
           }
         />
 
-        {/* ANY UNKNOWN ROUTE → LOGIN */}
-        <Route path="*" element={<Navigate to="/login" />} />
+        {/* FIND RIDERS (soon) */}
+        {/* 
+        <Route
+          path="/find-riders"
+          element={
+            <ProtectedRoute>
+              <FindRiders />
+            </ProtectedRoute>
+          }
+        />
+        */}
+
+        {/* CATCH-ALL → LOGIN */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

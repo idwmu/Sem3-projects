@@ -2,15 +2,15 @@ const express = require("express");
 const router = express.Router();
 const auth = require("../middleware/authMiddleware");
 const upload = require("../config/multer");
-
-const {
+const { 
   createPost,
   getAllPosts,
   likePost,
   unlikePost,
   addComment,
   getComments,
-  deletePost
+  deletePost,
+  markInterested
 } = require("../controllers/postController");
 
 // Create post
@@ -29,5 +29,7 @@ router.get("/comment/:id", auth, getComments);
 
 // Delete post (ONLY THIS — remove the duplicate)
 router.delete("/:id", auth, deletePost);
+router.post("/interested/:id", auth, markInterested);
+
 
 module.exports = router;

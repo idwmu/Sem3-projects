@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import API from "../services/api";
 import { useNavigate } from "react-router-dom";
-import CommentsModal from "../components/CommentsModal";
 
 const Feed = () => {
   const [posts, setPosts] = useState([]);
@@ -14,14 +13,39 @@ const Feed = () => {
 
   const fetchPosts = async () => {
     try {
-      const res = await API.get("/posts");
-      setPosts(res.data); // do NOT sort here
+      const postRes = await API.get("/posts");
+      const rideRes = await API.get("/rides");
+
+      const combined = [
+        ...postRes.data.map((p) => ({ ...p, kind: "post" })),
+        ...rideRes.data.map((r) => ({ ...r, kind: "ride" }))
+      ];
+
+      combined.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+
+      setPosts(combined);
     } catch (err) {
-      console.log("Error fetching posts");
+      console.log("Error fetching feed", err);
     }
   };
 
+  const interestRide = async (rideId) => {
+    try {
+      const res = await API.post(`/rides/interest/${rideId}`);
 
+      setPosts((prev) =>
+        prev.map((p) =>
+          p._id === rideId
+            ? { ...p, interested: [...(p.interested || []), "me"] }
+            : p
+        )
+      );
+    } catch (err) {
+      console.log("Interest error", err);
+    }
+  };
 
   const openComments = async (postId) => {
     setShowComments(true);
@@ -56,9 +80,21 @@ const Feed = () => {
       <div style={styles.sidebar}>
         <h1 style={styles.logo}>RideUp</h1>
 
-        <button style={styles.sideButton} onClick={() => navigate("/feed")}>🏠 Feed</button>
-        <button style={styles.sideButton} onClick={() => navigate("/profile")}>👤 Profile</button>
-        <button style={styles.sideButton} onClick={() => navigate("/create-post")}>➕ New Post</button>
+        <button style={styles.sideButton} onClick={() => navigate("/feed")}>
+          🏠 Feed
+        </button>
+
+        <button style={styles.sideButton} onClick={() => navigate("/profile")}>
+          👤 Profile
+        </button>
+
+        <button style={styles.sideButton} onClick={() => navigate("/create-post")}>
+          ➕ New Post
+        </button>
+
+        <button style={styles.sideButton} onClick={() => navigate("/create-ride")}>
+          🚴‍♂️ Find Riders
+        </button>
 
         <button
           style={{ ...styles.sideButton, marginTop: "auto", background: "#900" }}
@@ -75,45 +111,109 @@ const Feed = () => {
       <div style={styles.feedColumn}>
 
         {posts.map((p) => (
-          <div style={styles.card} key={p._id}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-              <h4 style={{margin:0}}>{p.user?.username}</h4>
-              <div style={{display:"flex", gap:8}}>
+          <div
+            key={p._id}
+            style={{
+              ...styles.card,
+              border:
+                p.kind === "ride" ? "2px solid #1DA1F2" : "1px solid #333"
+            }}
+          >
+            {/* HEADER */}
+            <div style={styles.headerRow}>
+              <h4 style={{ margin: 0 }}>{p.user?.username}</h4>
+
+              {p.kind === "post" && (
                 <button
+                  style={styles.likeButton}
                   onClick={async () => {
                     try {
                       const res = await API.put(`/posts/like/${p._id}`);
-                      // optimistic update: update likes count locally
-                      setPosts((prev) => prev.map((x) => x._id === p._id ? { ...x, likes: res.data.likes } : x));
-                    } catch (err) { console.log("Like error", err); }
+                      setPosts((prev) =>
+                        prev.map((x) =>
+                          x._id === p._id
+                            ? { ...x, likes: res.data.likes }
+                            : x
+                        )
+                      );
+                    } catch (err) {
+                      console.log("Like error", err);
+                    }
                   }}
-                  style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}
                 >
                   ❤️ {p.likes ? p.likes.length : 0}
                 </button>
-              </div>
+              )}
             </div>
 
-            <p>{p.description}</p>
+            {/* CONTENT */}
+            {p.kind === "ride" ? (
+              <>
+                <div style={styles.rideTag}>🏍 Ride Event</div>
 
-            {p.image && (
-              <div style={styles.imageWrapper}>
-                <img src={`http://localhost:8000/uploads/${p.image}`} style={styles.image} />
-              </div>
+                <h3 style={{ marginTop: 5 }}>{p.title}</h3>
+
+                <p>
+                  <b>Date:</b> {p.date}
+                </p>
+                <p>
+                  <b>Time:</b> {p.time}
+                </p>
+
+                <p>
+                  <b>Route:</b> {p.startLocation} → {p.destination}
+                </p>
+
+                <p style={{ marginTop: 10 }}>{p.description}</p>
+
+                <button
+                  style={styles.interestButton}
+                  onClick={() => interestRide(p._id)}
+                >
+                  ✔ Interested ({p.interested?.length || 0})
+                </button>
+              </>
+            ) : (
+              <>
+                <p>{p.description}</p>
+
+                {p.image && (
+                  <div style={styles.imageWrapper}>
+                    <img
+                      src={`http://localhost:8000/uploads/${p.image}`}
+                      style={styles.image}
+                    />
+                  </div>
+                )}
+
+                {p.location && (
+                  <p style={styles.location}>📍 {p.location}</p>
+                )}
+              </>
             )}
 
-            <p style={styles.location}>📍 {p.location}</p>
-
-            <button style={styles.commentBtn} onClick={() => openComments(p._id)}>💬 View Comments</button>
+            {/* COMMENTS BUTTON */}
+            {p.kind === "post" && (
+              <button
+                style={styles.commentBtn}
+                onClick={() => openComments(p._id)}
+              >
+                💬 View Comments
+              </button>
+            )}
           </div>
         ))}
-
       </div>
 
-      {/* RIGHT COMMENT PANEL */}
+      {/* RIGHT COMMENTS PANEL */}
       {showComments && (
         <div style={styles.commentPanel}>
-          <button style={styles.closeBtn} onClick={() => setShowComments(false)}>✖</button>
+          <button
+            style={styles.closeBtn}
+            onClick={() => setShowComments(false)}
+          >
+            ✖
+          </button>
 
           <h3>Comments</h3>
 
@@ -132,47 +232,47 @@ const Feed = () => {
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
             />
-            <button style={styles.sendBtn} onClick={addComment}>Post</button>
+
+            <button style={styles.sendBtn} onClick={addComment}>
+              Post
+            </button>
           </div>
         </div>
       )}
-
     </div>
   );
 };
 
+// =================== STYLES ===================
 const styles = {
   page: {
     display: "flex",
     height: "100vh",
     background: "#111",
-    color: "#eee",
+    color: "#eee"
   },
 
   sidebar: {
     width: "220px",
     padding: "20px",
+    background: "#000",
     borderRight: "1px solid #333",
     display: "flex",
     flexDirection: "column",
-    gap: "10px",
-    background: "#000",
+    gap: "10px"
   },
 
   sideButton: {
     padding: "10px",
     background: "#222",
-    border: "none",
-    color: "#eee",
-    cursor: "pointer",
-    textAlign: "left",
     borderRadius: "6px",
+    color: "#eee",
+    textAlign: "left",
+    cursor: "pointer",
+    border: "none"
   },
 
-  logo: {
-    color: "#fff",
-    marginBottom: "20px",
-  },
+  logo: { marginBottom: "20px" },
 
   feedColumn: {
     flex: 1,
@@ -180,7 +280,7 @@ const styles = {
     overflowY: "scroll",
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
+    alignItems: "center"
   },
 
   card: {
@@ -188,38 +288,68 @@ const styles = {
     background: "#181818",
     padding: "15px",
     borderRadius: "12px",
-    marginBottom: "25px",
-    border: "1px solid #333",
+    marginBottom: "25px"
+  },
+
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+
+  likeButton: {
+    background: "transparent",
+    border: "none",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: "16px"
+  },
+
+  rideTag: {
+    background: "#1DA1F2",
+    color: "#000",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    display: "inline-block",
+    marginTop: 5,
+    marginBottom: 5,
+    fontWeight: "bold"
+  },
+
+  interestButton: {
+    marginTop: 10,
+    padding: "8px",
+    width: "100%",
+    background: "#1DA1F2",
+    borderRadius: "6px",
+    cursor: "pointer",
+    border: "none",
+    fontWeight: "bold",
+    color: "#000"
   },
 
   imageWrapper: {
     width: "100%",
     height: "500px",
-    backgroundColor: "#000",
     borderRadius: "12px",
+    background: "#000",
     overflow: "hidden",
+    marginTop: "10px",
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
-    marginTop: "10px",
+    alignItems: "center"
   },
 
   image: {
     width: "100%",
     maxHeight: "500px",
-    objectFit: "contain",   
-    borderRadius: "12px",
-    backgroundColor: "#000",  // keeps it clean when image doesn't fill full space
-    marginTop: "10px",
-    maxHeight: "70vh",
-    objectFit: "contain",
-
+    objectFit: "contain"
   },
 
   location: {
     marginTop: "10px",
     fontStyle: "italic",
-    color: "#aaa",
+    color: "#aaa"
   },
 
   commentBtn: {
@@ -227,65 +357,64 @@ const styles = {
     padding: "8px",
     width: "100%",
     background: "#222",
-    border: "1px solid #444",
-    color: "#ddd",
     borderRadius: "6px",
+    color: "#ddd",
     cursor: "pointer",
+    border: "1px solid #444"
   },
 
-  // RIGHT COMMENTS PANEL
   commentPanel: {
     width: "350px",
-    borderLeft: "1px solid #333",
     background: "#000",
+    borderLeft: "1px solid #333",
     padding: "20px",
     display: "flex",
-    flexDirection: "column",
+    flexDirection: "column"
   },
 
   closeBtn: {
     background: "none",
-    color: "#f55",
     border: "none",
     fontSize: "20px",
-    cursor: "pointer",
+    color: "#f55",
     alignSelf: "flex-end",
+    cursor: "pointer"
   },
 
   commentList: {
     flex: 1,
     overflowY: "scroll",
-    marginTop: "10px",
+    marginTop: "10px"
   },
 
   commentItem: {
-    padding: "8px 0",
     borderBottom: "1px solid #222",
+    padding: "8px 0"
   },
 
   commentBox: {
     display: "flex",
     gap: "8px",
-    marginTop: "10px",
+    marginTop: "10px"
   },
 
   commentInput: {
     flex: 1,
-    padding: "8px",
-    borderRadius: "6px",
     background: "#222",
     color: "#fff",
-    border: "1px solid #444",
+    borderRadius: "6px",
+    padding: "8px",
+    border: "1px solid #444"
   },
 
   sendBtn: {
-    padding: "8px 12px",
     background: "#1e90ff",
+    borderRadius: "6px",
+    padding: "8px 12px",
     border: "none",
     color: "#fff",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
+    cursor: "pointer"
+  }
 };
 
 export default Feed;

@@ -25,6 +25,10 @@ app.use("/api/posts", postRoutes);
 const profileRoutes = require("./routes/profileRoutes");
 app.use("/api/profile", profileRoutes);
 
+const rideRoutes = require("./routes/rideRoutes");
+app.use("/api/rides", rideRoutes);
+
+
 // Test route
 app.get("/", (req, res) => {
     res.send("RideUp API is running");
